@@ -15,7 +15,7 @@ def convert_json_to_csv(start_date):
     access_token = os.getenv('UP_ACCESS_TOKEN')
 
     if not access_token:
-        print("UP_ACCESS_TOKEN environment variable is not set.")
+        print("UP_ACCESS_TOKEN environment variable is not set.", file=sys.stderr)
         sys.exit(1)
 
     headers = {
