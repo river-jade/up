@@ -27,7 +27,7 @@ def convert_json_to_csv(start_date):
         "page[size]": 100
     }
 
-    writer = csv.writer(sys.stdout)
+    writer = csv.writer(sys.stdout, delimiter='\t')
     writer.writerow(
         ['Time', 'BSB / Account Number', 'Account name', 'Transaction Type', 'Payee', 'Description', 'Category',
          'Tags', 'Subtotal (AUD)', 'Currency', 'Subtotal (Transaction Currency)', 'Round Up (AUD)', 'Total (AUD)',
