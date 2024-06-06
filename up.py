@@ -41,7 +41,7 @@ def convert_json_to_csv(start_date):
 
         data = response.json()
         transactions = data['data']
-        for transaction in transactions:
+        for transaction in reversed(transactions):
             transaction_time = transaction['attributes']['createdAt']
             payee = transaction['attributes']['description']
             description = transaction['attributes']['rawText']
