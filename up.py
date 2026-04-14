@@ -28,11 +28,10 @@ def convert_json_to_csv(start_date):
     }
 
     writer = csv.writer(sys.stdout, delimiter='\t')
-    writer.writerow(
-        ['Time', 'BSB / Account Number', 'Account name', 'Transaction Type', 'Payee', 'Description', 'Category',
-         'Tags', 'Subtotal (AUD)', 'Currency', 'Subtotal (Transaction Currency)', 'Round Up (AUD)', 'Total (AUD)',
-         'Payment Method', 'Settled Date'])
-
+    # Expected CSV Headers (for documentation):
+    # Time, BSB / Account Number, Account name, Transaction Type, Payee, Description, Category,
+    # Tags, Subtotal (AUD), Currency, Subtotal (Transaction Currency), Round Up (AUD), Total (AUD),
+    # Payment Method, Settled Date
     while True:
         response = requests.get(base_url, headers=headers, params=params)
         if response.status_code != 200:
