@@ -72,8 +72,9 @@ def convert_to_rfc3339(date_str):
     # Convert the input string to a datetime object
     dt = datetime.strptime(date_str, "%Y-%m-%d")
 
-    # Convert the datetime object to RFC 3339 format
-    rfc3339_str = dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
+    # Convert the naive datetime object to an aware object in the local timezone,
+    # then format to RFC 3339
+    rfc3339_str = dt.astimezone().isoformat()
 
     return rfc3339_str
 
@@ -84,8 +85,11 @@ def convert_from_rfc3339(rfc3339_str):
     # Parse the RFC 3339 formatted string into a datetime object
     dt = datetime.fromisoformat(rfc3339_str.replace("Z", "+00:00"))
 
+    # Convert to local timezone
+    local_dt = dt.astimezone()
+
     # Convert the datetime object to a string in yyyy-mm-dd format
-    date_str = dt.strftime("%Y-%m-%d")
+    date_str = local_dt.strftime("%Y-%m-%d")
 
     return date_str
 
