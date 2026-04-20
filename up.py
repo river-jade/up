@@ -44,24 +44,19 @@ def convert_json_to_csv(start_date):
             transaction_time = transaction['attributes']['createdAt']
             payee = transaction['attributes']['description']
             description = transaction['attributes']['rawText']
-            category = maybe(transaction['relationships']['category']['data'])['attributes']['title'].or_else(None)
-            tags = ', '.join([tag['attributes']['name'] for tag in transaction['relationships']['tags']['data']])
-            subtotal_aud = Decimal(transaction['attributes']['amount']['value'])
             currency = maybe(transaction['attributes'])['foreignAmount']['currencyCode'].or_else(
                 transaction['attributes']['amount']['currencyCode'])
             subtotal_transaction_currency = maybe(transaction['attributes'])['foreignAmount']['value'].or_else(
                 subtotal_aud)
-            round_up_aud = Decimal(maybe(transaction['attributes']['roundUp'])['amount'].or_else(0))
             total_aud = subtotal_aud + round_up_aud
-            payment_method = ''  # Payment method might not be available in Up Bank transactions
             settled_date = convert_from_rfc3339(transaction['attributes']['settledAt'])
 
             writer.writerow(
-                [transaction_time, '', '', '', payee, description, category, tags, subtotal_aud, currency,
-                 subtotal_transaction_currency, round_up_aud, total_aud, payment_method, settled_date])
+                [transaction_time, payee, description, currency, subtotal_transaction_currency, total_aud, payment_method, settled_date])
 
         if data['links']['next']:
             base_url = data['links']['next']
+
             params = None  # Use next_url for pagination
         else:
             break

@@ -1,0 +1,5 @@
+{
+  "venv": "~/.virtualenvs/up",
+  "python.defaultInterpreterPath": "~/.virtualenvs/up/bin/python",
+  "python.useEnvironmentsExtension": false
+}
