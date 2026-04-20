@@ -32,6 +32,7 @@ def convert_json_to_csv(start_date):
     # Time, BSB / Account Number, Account name, Transaction Type, Payee, Description, Category,
     # Tags, Subtotal (AUD), Currency, Subtotal (Transaction Currency), Round Up (AUD), Total (AUD),
     # Payment Method, Settled Date
+    to_print = []
     while True:
         response = requests.get(base_url, headers=headers, params=params)
         if response.status_code != 200:
@@ -40,19 +41,21 @@ def convert_json_to_csv(start_date):
 
         data = response.json()
         transactions = data['data']
-        for transaction in reversed(transactions):
+        for transaction in transactions:
             transaction_time = transaction['attributes']['createdAt']
             payee = transaction['attributes']['description']
             description = transaction['attributes']['rawText']
             currency = maybe(transaction['attributes'])['foreignAmount']['currencyCode'].or_else(
                 transaction['attributes']['amount']['currencyCode'])
+            subtotal_aud = Decimal(transaction['attributes']['amount']['value'])
             subtotal_transaction_currency = maybe(transaction['attributes'])['foreignAmount']['value'].or_else(
                 subtotal_aud)
+            round_up_aud = Decimal(maybe(transaction['attributes']['roundUp'])['amount'].or_else(0))
             total_aud = subtotal_aud + round_up_aud
+            payment_method = ''  # Payment method might not be available in Up Bank transactions
             settled_date = convert_from_rfc3339(transaction['attributes']['settledAt'])
 
-            writer.writerow(
-                [transaction_time, payee, description, currency, subtotal_transaction_currency, total_aud, payment_method, settled_date])
+            to_print.append([transaction_time, payee, description, currency, subtotal_transaction_currency, total_aud, settled_date])
 
         if data['links']['next']:
             base_url = data['links']['next']
@@ -60,6 +63,9 @@ def convert_json_to_csv(start_date):
             params = None  # Use next_url for pagination
         else:
             break
+    for row in reversed(to_print):
+        writer.writerow(row)
+        
 
 
 def convert_to_rfc3339(date_str):
