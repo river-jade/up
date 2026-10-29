@@ -6,18 +6,25 @@ import csv
 from decimal import Decimal
 import requests
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
+
 from pymaybe import maybe
 
 
 def convert_json_to_csv(start_date):
-    base_url = "https://api.up.com.au/api/v1/transactions"
+    account_id = os.getenv('UP_ACCOUNT_ID')
     access_token = os.getenv('UP_ACCESS_TOKEN')
 
     if not access_token:
         print("UP_ACCESS_TOKEN environment variable is not set.", file=sys.stderr)
         sys.exit(1)
 
+    if not account_id:
+        print("UP_ACCOUNT_ID environment variable is not set.", file=sys.stderr)
+        sys.exit(1)
+
+    base_url = f"https://api.up.com.au/api/v1/accounts/{account_id}/transactions"
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Accept": "application/json"
@@ -44,7 +51,7 @@ def convert_json_to_csv(start_date):
         for transaction in transactions:
             transaction_time = transaction['attributes']['createdAt']
             payee = transaction['attributes']['description']
-            description = transaction['attributes']['rawText']
+            description = transaction['attributes']['message']
             currency = maybe(transaction['attributes'])['foreignAmount']['currencyCode'].or_else(
                 transaction['attributes']['amount']['currencyCode'])
             subtotal_aud = Decimal(transaction['attributes']['amount']['value'])
@@ -68,15 +75,12 @@ def convert_json_to_csv(start_date):
         
 
 
+EASTERN_AUSTRALIA = ZoneInfo("Australia/Sydney")
+
 def convert_to_rfc3339(date_str):
-    # Convert the input string to a datetime object
     dt = datetime.strptime(date_str, "%Y-%m-%d")
-
-    # Convert the naive datetime object to an aware object in the local timezone,
-    # then format to RFC 3339
-    rfc3339_str = dt.astimezone().isoformat()
-
-    return rfc3339_str
+    dt = dt.replace(tzinfo=EASTERN_AUSTRALIA)
+    return dt.isoformat()
 
 
 def convert_from_rfc3339(rfc3339_str):

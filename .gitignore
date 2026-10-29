@@ -1,2 +1,16 @@
 env.sh
 .idea
+*.swp
+*.swo
+.venv/
+.env
+.env.*
+!.env.example
+!.env.fish.example
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+private_emails/
+raw_emails/
+*.tsv
+!fixtures/expected.tsv
