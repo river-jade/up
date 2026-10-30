@@ -9,3 +9,13 @@ These are minimal MailSlurp-like JSON objects. Their `body` HTML retains the ban
 The full original MailSlurp JSON objects have additional transport/header fields; parser code should rely primarily on `subject` and HTML `body` for these sample formats.
 
 These historical examples retain their original MailSlurp envelope. The importer normalizes AgentMail messages to the same `id`, `subject`, and HTML `body` fields, so these fixtures remain usable offline. AgentMail transport behavior is tested separately with mocked API responses.
+
+`virtual_account/payment.json` is a sanitized example based on an original
+virtual-account payment received as an `.eml` attachment. It preserves the actual
+field labels, with fictional timestamp, amount, and references, account numbers,
+provider, and account name. It is in a subdirectory so the original three-message
+`expected.tsv` batch remains unchanged. To preview this example offline:
+
+```sh
+python danamon.py 2026-10-01 --fixtures fixtures/virtual_account --rate 12636
+```

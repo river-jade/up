@@ -49,6 +49,7 @@ unchanged by the Danamon implementation.
 
 The required start date is **inclusive**, using the date printed in the bank's
 transaction details. Transactions sort by that date and time, oldest first.
+An optional `--until YYYY-MM-DD` excludes transactions on or after that bank date.
 The bank's displayed local time is preserved; email arrival time and your Mac's
 timezone do not determine ledger timestamps.
 
@@ -95,12 +96,27 @@ even a fixture preview fetches the latest exchange rate.
 # Preview only; also the default when no output option is supplied:
 python danamon.py 2026-10-20 --preview
 
-# Preview, then answer y to copy the whole batch:
+# Display the preview and copy the validated batch immediately:
 python danamon.py 2026-10-20 --copy
 
 # Optional manual divisor instead of a network lookup:
 python danamon.py 2026-10-20 --copy --rate 12636
 ```
+
+To avoid fetching older inbox messages, add `--email-since`:
+
+```fish
+python danamon.py 2026-10-01 --until 2026-11-01 --email-since 2026-10-29 --preview
+```
+
+This asks AgentMail for emails after **29 October at 00:00 UTC**, then selects
+October transactions from their contents. The email cutoff uses AgentMail's
+outer-message timestamp, not the bank transaction date or the dates of attached
+notifications. A newly forwarded batch can therefore contain older transactions.
+UTC midnight is 08:00 in Bali; choose an earlier date for overlap if needed.
+Omit this option to scan all available email history. It cannot be combined with
+`--fixtures`, which have no consistent outer email timestamps. This filter does
+not track which transactions have already been pasted.
 
 Check the preview's timestamps, descriptions, count, total, and exchange-rate date.
 After copying, select **column A of the first empty row** in the Danamon tab and
@@ -110,18 +126,18 @@ paste normally once. There is no header. The fields are:
 | --- | --- |
 | A | Bank timestamp, `DD/MM/YYYY HH:MM` (24-hour time) |
 | B | Negative numeric IDR debit |
-| C | `=INDEX(B:B,ROW())/RATE`, with the batch's numeric rate substituted |
+| C | Numeric AUD debit, calculated in Python and rounded to two decimal places |
 | D | Empty category for manual entry |
 | E | Merchant or recipient/notes |
 
-Normal paste is needed so column C becomes a formula. The format targets an
+The output contains numeric amounts, with no currency formulas. The format targets an
 English (Australia) Sheet locale. On the first paste, check that A is recognized
-as date/time values, B as numbers, C calculates AUD, and D remains empty. Format
+as date/time values, B and C as numbers, and D remains empty. Format
 column A as date and time if its existing date-only format hides the time. The
 actual Sheet locale and paste behaviour have not been tested against your
 spreadsheet.
 
-No confirmation state is saved. Copying or pasting never marks a transaction as
+No import state is saved. Copying or pasting never marks a transaction as
 imported. Repeating the same start date returns the same eligible transactions
 while the inbox is unchanged; a fresh exchange-rate lookup may change AUD values.
 Use `--rate` to reproduce a previous divisor. Handle overlap with existing Sheet
@@ -129,8 +145,9 @@ rows manually. Occasionally overlap dates to catch late notifications whose bank
 dates precede the most recent import boundary.
 
 `--tsv` writes only TSV to stdout, with the preview and diagnostics on stderr.
-Prefer `--copy` over piping to `pbcopy`: it waits for a complete result and your
-confirmation before touching the clipboard. Preview, cancellation, empty batches,
+Prefer `--copy` over piping to `pbcopy`: it waits for a complete, validated result
+before touching the clipboard, then copies without a confirmation prompt. Use
+`--preview` first when you want to review without copying. Preview, empty batches,
 and retrieval/validation failures leave the clipboard unchanged. A clipboard
 utility failure itself cannot guarantee the previous clipboard contents survived.
 
@@ -141,12 +158,17 @@ Each nonempty batch uses one latest daily **IDR per AUD** reference rate from
 key is needed. The rate and publication date appear in the preview; weekends and
 holidays can use the preceding published rate. This is a budgeting reference
 rate, not your bank's actual conversion rate or a historical rate per transaction.
-The numeric divisor is embedded in each formula so the pasted batch does not
-change when future rates move. A lookup failure stops the export; supply `--rate`
+Python divides each IDR debit by the batch rate and rounds to AUD cents using
+half-up rounding. The preview total sums those rounded amounts, matching the
+pasted rows. Pasted values do not change when future rates move. A lookup failure stops the export; supply `--rate`
 to proceed manually. There is no automatic fallback to the old divisor.
 
 Supported notifications are successful QRIS payments, outgoing bank transfers,
-and GoPay top-ups. GoPay top-ups are expenses including the confirmed admin fee.
+virtual-account payments, and GoPay top-ups. GoPay top-ups are expenses including the confirmed admin fee.
+Virtual-account payments use the notification's transaction date and amount,
+with the service provider and virtual-account name as the description. This
+template has no separate fee or total; no extra fee is assumed. If an explicit
+total is present, it is used, and any explicit admin fee must agree with it.
 The transfer template's warning about a *possible* Rp2,500 fee is not a confirmed
 charge and is not added. Missing/invalid fields, unsuccessful status, unsupported
 subjects, and multiple transaction tables in one email require review. Incoming
@@ -163,14 +185,57 @@ allows the valid rows to be copied/exported; warnings remain visible. Unknown
 mail is reported even when its transaction date cannot be determined. API or
 pagination failures cannot be bypassed with this flag.
 
+### Backfill a month from Gmail
+
+Turn off Gmail's **Conversation view** before selecting the individual October
+notifications. Choose **Forward as attachment**, then send the batch to your
+AgentMail inbox. Each notification
+should be its own `.eml` attachment. The subject of the outer batch email can be
+anything; it is not treated as a transaction. Keep batches below Gmail's 25 MB
+threshold so they remain attachments rather than Google Drive links.
+
+Check that the attachment count matches the individual emails you selected.
+Selecting conversations is not a reliable completeness check: in the inspected
+backfill, Gmail sent one notification per selected conversation, with no other
+thread messages inside those `.eml` files. The importer cannot recover messages
+that were not included in the forwarded files.
+
+For October 2026, preview the batch with:
+
+```fish
+vf activate up
+source .env
+python danamon.py 2026-10-01 --until 2026-11-01 --preview
+```
+
+Once you have checked the preview, use the same command with `--copy` instead of
+`--preview`. Add `--skip-invalid` only after reviewing any unsupported messages,
+such as inbox setup emails. The end date is exclusive, so this includes October
+31 and excludes November 1.
+
+The importer downloads `.eml`/`message/rfc822` attachments and decodes their
+original subjects and HTML locally using Python's standard library. It applies
+the same date filtering and bank-reference duplicate checks to attached emails
+and ordinary notifications together. Images and other non-email attachments are
+not downloaded. Nothing is marked imported, so handle overlap with existing
+spreadsheet rows manually.
+
+Malformed or unsupported attached emails appear as review items with their
+attachment number, filename, and subject. A download failure stops the whole
+export. Individual attached emails over 25 MB are rejected. Attach original
+notifications directly: an `.eml` that itself contains attached emails requires
+review rather than silently omitting its contents. This does not import PDFs,
+Drive links, or plaintext-only notifications.
+
 ### AgentMail and forwarding limitations
 
 The script lists available messages in the configured inbox, including read
 messages, following `next_page_token` until the last page. A fixed `before`
-message-timestamp boundary keeps the scan bounded. There is no lower timestamp
-filter: the bank-date boundary is applied **after** parsing, so forwarding old
-notifications today works. This is intentionally simple and can be slow for a
-large inbox. Deleted or unavailable messages cannot be recovered by this importer.
+message-timestamp boundary keeps the scan bounded. By default there is no lower
+email timestamp filter; `--email-since` supplies one through the API's `after`
+parameter on every page. The bank-date boundary is applied **after** parsing,
+so forwarding old notifications today works. A full scan can be slow for a large
+inbox. Deleted or unavailable messages cannot be recovered by this importer.
 The listing uses AgentMail's defaults, which exclude spam, blocked,
 unauthenticated, and trashed messages.
 
@@ -192,13 +257,15 @@ The fixtures are manually forwarded HTML notifications, one per email. Sender
 addresses inside forwarded HTML are not proof of authenticity, and the parser
 does not authenticate bank messages. Set up forwarding for the intended bank
 notifications and inspect the preview. Automatically forwarded messages need a
-real example to verify their format. Attached `.eml` files, plaintext-only mail,
-and bundled threads are not supported as transaction input.
+real example to verify their format. Bulk `.eml` attachments are supported as
+described above; plaintext-only mail and multiple transactions embedded in one
+HTML body are not supported as transaction input.
 
 [Gmail forwarding filters only affect new messages](https://support.google.com/mail/answer/6579?hl=en-ca).
 Historical notifications require a separate backfill step; do not assume enabling
 a filter forwards existing history. Keep each backfilled notification as one
-HTML email. Monthly Danamon statements remain the authoritative reconciliation
+HTML email, either forwarded individually or attached as an `.eml` in a batch.
+Monthly Danamon statements remain the authoritative reconciliation
 source because notification emails may not cover every transaction.
 
 ### Tests

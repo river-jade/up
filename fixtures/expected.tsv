@@ -1,3 +1,3 @@
-03/10/2024 09:10	-81500	=INDEX(B:B,ROW())/12636		GoPay top up (incl. 1,500 fee)
-11/10/2024 14:35	-123450	=INDEX(B:B,ROW())/12636		Example Cafe
-17/10/2024 11:20	-275000	=INDEX(B:B,ROW())/12636		Example Recipient - Example invoice
+03/10/2024 09:10	-81500	-6.45		GoPay top up (incl. 1,500 fee)
+11/10/2024 14:35	-123450	-9.77		Example Cafe
+17/10/2024 11:20	-275000	-21.76		Example Recipient - Example invoice

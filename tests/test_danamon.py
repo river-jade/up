@@ -190,7 +190,7 @@ def test_cell_injection_quotes_and_unicode():
     result = d.to_tsv([tx], Decimal("12345.67"))
     row = next(csv.reader(io.StringIO(result), delimiter="\t"))
     assert row[4] == 'Café "A" B C'
-    assert row[2] == "=INDEX(B:B,ROW())/12345.67"
+    assert row[2] == "-10.00"
     assert result.count("\t") == 4
     assert d.to_tsv([replace(tx, amount=Decimal("-100.50"))], RATE).split("\t")[1] == "-100.5"
 
@@ -344,15 +344,13 @@ def test_cli_preview_tsv_and_repeatability(capsys, monkeypatch):
         assert capsys.readouterr().out == (FIXTURES / "expected.tsv").read_text()
 
 
-@pytest.mark.parametrize("answer,expected_calls", [("yes",1), ("n",0), ("",0)])
-def test_copy_requires_review_confirmation(answer, expected_calls, monkeypatch):
+def test_copy_runs_without_confirmation(monkeypatch, capsys):
     copy = Mock()
     monkeypatch.setattr(d, "copy_tsv", copy)
-    monkeypatch.setattr("builtins.input", lambda: answer)
+    monkeypatch.setattr("builtins.input", Mock(side_effect=AssertionError("unexpected prompt")))
     assert d.main([str(SINCE), "--fixtures", str(FIXTURES), "--rate", str(RATE), "--copy"]) == 0
-    assert copy.call_count == expected_calls
-    if expected_calls:
-        assert copy.call_args.args[0] == (FIXTURES / "expected.tsv").read_text()
+    copy.assert_called_once_with((FIXTURES / "expected.tsv").read_text())
+    assert "[y/N]" not in capsys.readouterr().err
 
 
 def test_review_items_block_export_unless_explicitly_skipped(tmp_path, capsys):
@@ -426,3 +424,50 @@ def test_live_cli_uses_agentmail_configuration(monkeypatch):
     monkeypatch.setattr(d, "fetch_emails", fetch)
     assert d.main([str(SINCE)]) == 0
     assert fetch.call_args.args[1:] == ("key", "sample@agentmail.to")
+
+
+def test_email_since_is_preserved_across_pages_without_filtering_bank_dates():
+    first, second = email(), email('gopay_topup')
+    session = Mock()
+    session.get.side_effect = [page([first], 'next-page'), page([second]),
+                               response(message_data(first)), response(message_data(second))]
+    messages = d.fetch_emails(session, 'key', 'inbox', email_since=date(2024, 10, 25))
+    calls = session.get.call_args_list
+    assert calls[0].kwargs['params']['after'] == '2024-10-25T00:00:00Z'
+    assert calls[1].kwargs['params']['after'] == calls[0].kwargs['params']['after']
+    assert calls[1].kwargs['params']['page_token'] == 'next-page'
+    batch = d.build_batch(messages, SINCE, date(2024, 11, 1))
+    assert len(batch.transactions) == 2
+    assert batch.transactions[0].occurred_at.date() == date(2024, 10, 3)
+
+
+def test_email_since_cli_passes_cutoff_to_retrieval(monkeypatch, capsys):
+    monkeypatch.setenv('AGENTMAIL_API_KEY', 'key')
+    monkeypatch.setenv('AGENTMAIL_INBOX_ID', 'inbox')
+    fetch = Mock(return_value=[email()])
+    monkeypatch.setattr(d, 'fetch_emails', fetch)
+    assert d.main(['2024-10-01', '--until', '2024-11-01', '--email-since', '2024-10-25',
+                   '--rate', str(RATE), '--tsv']) == 0
+    assert fetch.call_args.kwargs == {'email_since': date(2024, 10, 25)}
+    output = capsys.readouterr()
+    assert '2024-10-25 00:00 UTC (outer emails)' in output.err
+    assert output.out.startswith('11/10/2024 14:35\t')
+
+
+@pytest.mark.parametrize('args', [
+    ['--email-since', 'not-a-date'],
+    ['--email-since', '2024-02-30'],
+    ['--email-since', '2024-10-25', '--fixtures', str(FIXTURES)],
+])
+def test_email_since_invalid_arguments_fail_before_network(args):
+    with pytest.raises(SystemExit) as caught:
+        d.main(['2024-10-01'] + args)
+    assert caught.value.code == 2
+
+
+@pytest.mark.parametrize("amount,rate,expected", [("-1.005", "1", "-1.01"), ("-1", "8", "-0.13"),
+                                                 ("-100", "3", "-33.33")])
+def test_numeric_aud_rounded_to_cents(amount, rate, expected):
+    tx = replace(d.parse_email(email()), amount=Decimal(amount))
+    row = next(csv.reader(io.StringIO(d.to_tsv([tx], Decimal(rate))), delimiter="\t"))
+    assert row[2] == expected

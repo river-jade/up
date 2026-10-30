@@ -1,0 +1,5 @@
+{
+  "id": "sample-virtual-account",
+  "subject": "Transfer Virtual Account Successful (Do Not Reply)",
+  "body": "<html><body><table><tr><td>Status :</td><td>Successful</td></tr><tr><td>Reference Number :</td><td>VA-EXAMPLE-001</td></tr><tr><td>Transaction Date :</td><td>23 October 2024, 16:40</td></tr><tr><td>Service Provider :</td><td>Sample Payment Service</td></tr><tr><td>Virtual Account Number :</td><td>0000000000000000</td></tr><tr><td>Virtual Account Name :</td><td>Sample Merchant</td></tr><tr><td>Destination Bank :</td><td>BANK DANAMON</td></tr><tr><td>Amount :</td><td>Rp96.000,00</td></tr><tr><td>Payment Type :</td><td>Full</td></tr></table></body></html>"
+}
